@@ -1,0 +1,21 @@
+# Blueprint do Render (https://render.com). Ao conectar o repositorio, o Render
+# le este arquivo e cria o servico automaticamente.
+services:
+  - type: web
+    name: lista-smart-api
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /products   # endpoint publico que responde 200
+    autoDeploy: true
+    envVars:
+      # Defina os 3 abaixo no painel do Render (a partir da connection string da Neon).
+      - key: NEON_DB_URL
+        sync: false              # ex.: jdbc:postgresql://SEU_HOST.neon.tech/listasmart?sslmode=require
+      - key: NEON_DB_USER
+        sync: false
+      - key: NEON_DB_PASSWORD
+        sync: false
+      # Gerado automaticamente pelo Render (chave aleatoria segura).
+      - key: JWT_SECRET
+        generateValue: true
