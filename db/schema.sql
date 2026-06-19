@@ -56,3 +56,17 @@ CREATE INDEX IF NOT EXISTS idx_contrib_user_status
     ON contributions (user_id, status);
 CREATE INDEX IF NOT EXISTS idx_contrib_user_submitted
     ON contributions (user_id, submitted_at DESC);
+
+-- --------------------------------------------------------------------------
+-- NFCE_RESGATADA - anti-duplicidade de NFC-e (1 linha por chave de acesso)
+-- --------------------------------------------------------------------------
+--  Garante que uma mesma NFC-e (chave de 44 digitos) so gere pontos UMA vez no
+--  sistema inteiro (escopo global). A chave persiste mesmo apos o soft-delete
+--  das contribuicoes, de modo que reescanear o cupom nunca volta a pontuar.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS nfce_resgatada (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    chave       VARCHAR(44)  NOT NULL UNIQUE,
+    user_id     BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    redeemed_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+);

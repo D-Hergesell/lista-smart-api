@@ -19,3 +19,6 @@ services:
       # Gerado automaticamente pelo Render (chave aleatoria segura).
       - key: JWT_SECRET
         generateValue: true
+      # Ferramentas de dev (gerador de QR) desligadas em producao.
+      - key: DEV_TOOLS_ENABLED
+        value: "false"

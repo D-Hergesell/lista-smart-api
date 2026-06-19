@@ -3,8 +3,13 @@ package com.listasmart.api.service;
 import com.listasmart.api.dto.ContributionRequest;
 import com.listasmart.api.dto.ContributionResponse;
 import com.listasmart.api.entity.ContributionEntity;
+import com.listasmart.api.entity.NfceResgatadaEntity;
 import com.listasmart.api.exception.ApiException;
+import com.listasmart.api.nfce.NfceItemResolver;
+import com.listasmart.api.nfce.NfceKey;
+import com.listasmart.api.nfce.NfceNota;
 import com.listasmart.api.repository.ContributionRepository;
+import com.listasmart.api.repository.NfceResgatadaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +37,15 @@ public class ContributionService {
     public static final int POINTS_MANUAL = 5;
 
     private final ContributionRepository repo;
-    private final NfceQrParser qrParser;
+    private final NfceItemResolver nfceResolver;
+    private final NfceResgatadaRepository resgatadaRepo;
 
-    public ContributionService(ContributionRepository repo, NfceQrParser qrParser) {
+    public ContributionService(ContributionRepository repo,
+                               NfceItemResolver nfceResolver,
+                               NfceResgatadaRepository resgatadaRepo) {
         this.repo = repo;
-        this.qrParser = qrParser;
+        this.nfceResolver = nfceResolver;
+        this.resgatadaRepo = resgatadaRepo;
     }
 
     @Transactional
@@ -69,17 +78,30 @@ public class ContributionService {
     private List<ContributionResponse> createFromQr(Long userId, ContributionRequest req) {
         if (isBlank(req.rawData())) throw ApiException.badRequest("rawData é obrigatório para type=qr");
 
-        List<NfceQrParser.Item> items = qrParser.parse(req.rawData());
+        // Valida o conteudo do QR e extrai a chave de acesso (formato + modulo 11).
+        NfceKey key = NfceKey.parse(req.rawData());
+
+        // Anti-duplicidade GLOBAL: a mesma NFC-e nao pontua duas vezes no sistema.
+        // A chave persiste mesmo apos soft-delete, fechando o farm de pontos.
+        if (resgatadaRepo.existsByChave(key.chave())) {
+            throw ApiException.conflict("Esta NFC-e já foi cadastrada");
+        }
+        resgatadaRepo.save(new NfceResgatadaEntity(key.chave(), userId));
+
+        // Resolve a nota (mock hoje; API real plugavel). Cada item vira uma
+        // contribuicao COMPLETA, com paridade de campos com o cadastro manual.
+        NfceNota nota = nfceResolver.resolve(key);
         Instant now = Instant.now();
         List<ContributionResponse> out = new ArrayList<>();
 
-        // Uma contribuicao por item extraido, cada uma valendo POINTS_QR.
-        for (NfceQrParser.Item item : items) {
+        for (NfceNota.Item item : nota.items()) {
             ContributionEntity e = new ContributionEntity();
             e.setUserId(userId);
             e.setType(ContributionEntity.TYPE_QR);
-            e.setProduct(item.name());
+            e.setProduct(item.product());
+            e.setMarket(nota.market());
             e.setPrice(item.price());
+            e.setDate(nota.date());
             e.setRawData(req.rawData());
             e.setSubmittedAt(now);
             e.setPoints(POINTS_QR);
