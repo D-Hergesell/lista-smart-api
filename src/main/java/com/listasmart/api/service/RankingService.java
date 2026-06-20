@@ -1,6 +1,7 @@
 package com.listasmart.api.service;
 
 import com.listasmart.api.dto.LeaderboardEntry;
+import com.listasmart.api.gamification.RankTable;
 import com.listasmart.api.repository.ContributionRepository;
 import com.listasmart.api.repository.projection.RankingRow;
 import org.springframework.stereotype.Service;
@@ -27,12 +28,14 @@ public class RankingService {
         List<LeaderboardEntry> list = new ArrayList<>(rows.size());
         for (RankingRow r : rows) {
             boolean isCurrent = currentUserId != null && currentUserId.equals(r.getUserId());
+            String badge = RankTable.RANKS.get(RankTable.indexForPoints(r.getPoints())).name();
             list.add(new LeaderboardEntry(
                     r.getUsername(),
                     r.getPoints(),
                     r.getContributions(),
                     AvatarUtil.initials(r.getUsername()),
-                    isCurrent));
+                    isCurrent,
+                    badge));
         }
         return list;
     }
