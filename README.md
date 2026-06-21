@@ -1,73 +1,94 @@
 # Lista Smart API
 
-Backend REST do app **Lista Smart** (Android). Spring Boot 3.2 + PostgreSQL
-(NeonDB) + JWT. Substitui o placeholder MockAPI.
-
-> Arquitetura, esquema SQL, regras de pontos, ranks e endpoints: ver
-> [DESIGN.md](DESIGN.md).
+Backend REST do app Lista Smart. Modelagem de dados, regras de pontos/ranks e
+notas de design: [DESIGN.md](DESIGN.md).
 
 ## Stack
-- Java 17, Spring Boot 3.2, Spring Data JPA, Spring Security
-- PostgreSQL serverless (NeonDB), JWT HS256
+Java 17 · Spring Boot 3.2 (Web, Data JPA, Security, Validation) · PostgreSQL
+(NeonDB) · JWT HS256 (jjwt) · Maven
+
+## Estrutura
+```
+com.listasmart.api
+├── controller/   Auth, Catalog, Contribution, Ranking, User, DevNfce
+├── service/      Auth, Contribution, Ranking, Avatar
+├── gamification/ GamificationService, RankTable (selo por pontos acumulados)
+├── nfce/         NfceKey (chave + módulo 11), NfceItemResolver/MockNfceResolver, NfceNota
+├── entity/       User, Product, Market, Contribution, NfceResgatada
+├── repository/   *Repository (Spring Data JPA) + projection/RankingRow
+├── dto/          Auth, Catalog, Contribution(Request/Response), Leaderboard, RankProgress, UserMe
+├── security/     JwtService, JwtAuthFilter, SecurityConfig, CurrentUser
+├── exception/    ApiException, GlobalExceptionHandler
+└── config/       CatalogSeeder (semeia products/markets na 1ª subida)
+```
+
+## Endpoints
+| Método | Rota | Auth | Descrição |
+|---|---|---|---|
+| POST | `/auth/register` | pública | cria usuário, retorna `{token,userId,username}` |
+| POST | `/auth/login` | pública | autentica, retorna token |
+| GET | `/users/me` | Bearer | perfil + pontos + selo + posição no ranking |
+| POST | `/contributions` | Bearer | cria contribuição (qr → N itens; manual → 1) |
+| GET | `/contributions/user/{id}` | Bearer (dono) | histórico (`submitted_at DESC`) |
+| PUT | `/contributions/{id}` | Bearer (dono) | edita (não altera pontos/tipo) |
+| DELETE | `/contributions/{id}` | Bearer (dono) | soft-delete (estorna pontos) |
+| GET | `/products` · `/markets` | pública | catálogo (spinners do app) |
+| GET | `/ranking` | Bearer | ranking global, dono marcado |
+| GET | `/dev/nfce/key` · `/dev/nfce/qr` | dev | gera chave/QR de NFC-e de teste |
+
+`/dev/nfce/*` só existe com `app.dev-tools.enabled=true`. Erros saem como
+`{"error":"mensagem"}` com o status HTTP correspondente (`GlobalExceptionHandler`).
+
+## Segurança
+- JWT HS256 stateless (`sub` = userId); filtro `JwtAuthFilter` + `SecurityConfig`
+  (sessão `STATELESS`, CSRF off).
+- Senhas em BCrypt; nunca retornadas.
+- Autorização por dono: edição/exclusão/histórico exigem o `user_id` do token.
 
 ## Variáveis de ambiente
 | Variável | Descrição |
 |---|---|
-| `NEON_DB_URL` | `jdbc:postgresql://SEU_HOST.neon.tech/listasmart?sslmode=require` |
-| `NEON_DB_USER` | usuário do banco (painel Neon) |
-| `NEON_DB_PASSWORD` | senha do banco |
-| `JWT_SECRET` | chave HS256, **≥ 32 caracteres** |
-| `PORT` | opcional; default 8080 (o Render injeta automaticamente) |
+| `NEON_DB_URL` | `jdbc:postgresql://HOST.neon.tech/listasmart?sslmode=require` |
+| `NEON_DB_USER` / `NEON_DB_PASSWORD` | credenciais do banco |
+| `JWT_SECRET` | chave HS256, ≥ 32 caracteres |
+| `PORT` | opcional; default 8080 |
 
-## Rodar localmente
-
-**Com Docker (recomendado, não precisa de Maven):**
+## Run
+**Docker:**
 ```bash
 docker build -t lista-smart-api .
 docker run -p 8080:8080 \
-  -e NEON_DB_URL="jdbc:postgresql://SEU_HOST.neon.tech/listasmart?sslmode=require" \
+  -e NEON_DB_URL="jdbc:postgresql://HOST.neon.tech/listasmart?sslmode=require" \
   -e NEON_DB_USER="..." -e NEON_DB_PASSWORD="..." \
-  -e JWT_SECRET="uma-chave-aleatoria-de-32-ou-mais-bytes" \
+  -e JWT_SECRET="<chave de 32+ caracteres>" \
   lista-smart-api
 ```
-
-**Com Maven (se tiver instalado):**
+**Maven:**
 ```bash
 export NEON_DB_URL=... NEON_DB_USER=... NEON_DB_PASSWORD=... JWT_SECRET=...
 mvn spring-boot:run
 ```
+`ddl-auto=update` cria/ajusta o schema; o catálogo é semeado na 1ª subida
+(`CatalogSeeder`). API em `http://localhost:8080`.
 
-API em `http://localhost:8080`. O catálogo é semeado na 1ª subida.
+## Deploy (Render)
+`render.yaml` provisiona o serviço Docker via Blueprint. Definir `NEON_DB_URL`,
+`NEON_DB_USER`, `NEON_DB_PASSWORD` no painel (`JWT_SECRET` gerado pelo Render).
+A URL pública vai em `API_BASE_URL` no app.
 
-## Deploy no Render (via GitHub)
-1. Crie o banco no [NeonDB](https://neon.tech) e copie a connection string.
-2. Suba este projeto para um repositório no GitHub.
-3. No [Render](https://render.com): **New → Blueprint** e aponte para o repo.
-   O [`render.yaml`](render.yaml) cria o serviço Docker automaticamente.
-4. Preencha `NEON_DB_URL`, `NEON_DB_USER`, `NEON_DB_PASSWORD` no painel
-   (o `JWT_SECRET` é gerado pelo Render). Confirme que o `JWT_SECRET` tem
-   ao menos 32 caracteres.
-5. A URL pública gerada (`https://lista-smart-api.onrender.com`) vai em
-   `ApiClient.BASE_URL` no app Android.
-
-> Plano free do Render hiberna após inatividade: a 1ª chamada pode levar
-> alguns segundos para "acordar" o serviço — normal para uso acadêmico.
+## Testes
+```bash
+mvn test
+```
+JUnit 5 + Mockito (sem banco):
+- `NfceKeyTest` — chave NFC-e: 44 dígitos, dígito verificador (módulo 11), parse da URL SEFAZ.
+- `GamificationServiceTest` — selo/rank e progresso por pontos.
+- `ContributionServiceTest` — pontos (5 manual / 10 por item QR), anti-duplicidade, validações.
 
 ## Smoke test
 ```bash
-curl -X POST https://SUA_URL/auth/register \
+curl -X POST http://localhost:8080/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"teste","password":"123456"}'
 # -> {"token":"...","userId":1,"username":"teste"}
 ```
-
-## Testes (unitários)
-```bash
-mvn test
-```
-Testes de unidade (JUnit 5 + Mockito, sem banco) da lógica de negócio:
-- `NfceKeyTest` — chave da NFC-e: 44 dígitos, dígito verificador (módulo 11) e
-  extração da chave a partir da URL da SEFAZ.
-- `GamificationServiceTest` — selo/rank e progresso por pontos acumulados.
-- `ContributionServiceTest` — regra de pontos (5 manual / 10 por item de QR),
-  anti-duplicidade da NFC-e e validações (tipo, preço, data).
