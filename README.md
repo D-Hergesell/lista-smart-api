@@ -60,3 +60,14 @@ curl -X POST https://SUA_URL/auth/register \
   -d '{"username":"teste","password":"123456"}'
 # -> {"token":"...","userId":1,"username":"teste"}
 ```
+
+## Testes (unitários)
+```bash
+mvn test
+```
+Testes de unidade (JUnit 5 + Mockito, sem banco) da lógica de negócio:
+- `NfceKeyTest` — chave da NFC-e: 44 dígitos, dígito verificador (módulo 11) e
+  extração da chave a partir da URL da SEFAZ.
+- `GamificationServiceTest` — selo/rank e progresso por pontos acumulados.
+- `ContributionServiceTest` — regra de pontos (5 manual / 10 por item de QR),
+  anti-duplicidade da NFC-e e validações (tipo, preço, data).
