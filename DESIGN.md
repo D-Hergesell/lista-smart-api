@@ -1,6 +1,6 @@
 # Lista Smart — Backend (Spring Boot + NeonDB/PostgreSQL)
 
-Backend REST que substitui o placeholder MockAPI do app Android. Nível
+Backend REST para o app Android. Nível
 acadêmico: simples, coerente com o que o app já faz, sem conceitos extras.
 
 - **Stack:** Java 17, Spring Boot 3.2, Spring Data JPA, Spring Security, JWT (HS256).
