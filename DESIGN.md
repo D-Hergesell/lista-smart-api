@@ -1,7 +1,6 @@
 # Lista Smart — Backend (Spring Boot + NeonDB/PostgreSQL)
 
-Backend REST para o app Android. Nível
-acadêmico: simples, coerente com o que o app já faz, sem conceitos extras.
+Backend REST do app Android.
 
 - **Stack:** Java 17, Spring Boot 3.2, Spring Data JPA, Spring Security, JWT (HS256).
 - **Banco:** NeonDB (PostgreSQL serverless), driver `org.postgresql`.
@@ -57,8 +56,7 @@ Arquivo canônico: [`db/schema.sql`](db/schema.sql). Resumo:
 ```
 
 `products`/`markets` alimentam os Spinners. A contribuição guarda o **nome**
-do produto/mercado (string), espelhando o comportamento atual do app (que
-inclusive permite a opção "Outro" digitada à mão) — por isso não há FK.
+(string) do produto/mercado, não uma FK — o app permite digitar "Outro".
 
 ## 3. Endpoints
 
@@ -84,9 +82,8 @@ Respostas de erro: `{"error": "mensagem"}` com o status HTTP apropriado.
    `{token, userId, username}`.
 3. App guarda o token (no `SessionManager`) e envia em todas as chamadas:
    `Authorization: Bearer <token>`.
-4. JWT é **stateless** (HS256, `sub`=userId): não há tabela de tokens nem
-   sessão de servidor. Escolhido por ser o mais simples de integrar com o
-   Retrofit (apenas um header) e por não exigir armazenamento de estado.
+4. JWT **stateless** (HS256, `sub`=userId): sem tabela de tokens nem sessão de
+   servidor — a validação é feita pela assinatura a cada requisição.
 
 Validações mínimas: `username` não vazio (≤ 50), senha ≥ 6 caracteres,
 `username` único (409 em conflito).
@@ -111,11 +108,8 @@ de contribuições). Fonte: [`gamification/RankTable.java`](src/main/java/com/li
 | Prata II | 435 | | | Desafiante | 5500 |
 | Prata I | 510 | | | | |
 
-**Calibragem.** 1 manual = 5 pts, 1 item de QR = 10 pts. Usuário casual
-(~1–2 envios/dia ≈ 10–15 pts/dia) atravessa Ferro/Bronze em dias e chega a
-Prata/Ouro em poucas semanas. As faixas finais (Mestre+, milhares de pontos)
-exigem meses de uso consistente, preservando o senso de progressão. A curva é
-levemente acelerada (cada faixa pede um pouco mais que a anterior).
+**Calibragem.** 1 manual = 5 pts, 1 item de QR = 10 pts. A curva é levemente
+acelerada: cada faixa exige um pouco mais que a anterior.
 
 `GET /users/me` retorna o selo atual, o próximo e o `progressPercent` dentro da
 faixa (campo `badge`).
@@ -128,13 +122,10 @@ faixa (campo `badge`).
   **nunca** altera `points` nem `type`.
 - **Exclusão = estorno:** **soft delete** (`status='deleted'`).
 
-**Por que soft delete + total derivado (e não saldo denormalizado):** o total
-do usuário é **sempre** `SUM(points) WHERE status='active'`. Não existe coluna
-de "saldo" para manter em sincronia, então a exclusão estorna os pontos
-automaticamente (a linha sai do somatório) sem risco de divergência. Bônus:
-preserva o registro para auditoria/histórico. Trade-off aceito: o ranking faz
-`SUM` por consulta — irrelevante na escala acadêmica e coberto pelo índice
-`(user_id, status)`.
+O total do usuário é sempre `SUM(points) WHERE status='active'` — não há coluna
+de "saldo" denormalizado, então o soft delete estorna os pontos automaticamente
+(a linha sai do somatório) e preserva o registro. O `SUM` por consulta é coberto
+pelo índice `(user_id, status)`.
 
 ## 7. Estratégia de ranking global
 
@@ -206,8 +197,7 @@ O catálogo (products/markets) é semeado automaticamente na 1ª subida
 ## Integração no app Android
 
 Trocar `ApiClient.BASE_URL` para a URL do backend e expandir `ApiService` com
-os novos endpoints. Os DTOs já usam os **mesmos nomes de campo** dos models
-(`Contribution`, `Product`, `Market`, `LeaderboardUser`) — em especial
-`submittedAt` (epoch ms) e `date` (`yyyy-MM-dd`) —, então a desserialização Gson
-continua funcionando sem mudanças nos models. Adicionar apenas um interceptor
-Retrofit que injete o header `Authorization: Bearer <token>`.
+os novos endpoints. Os DTOs usam os **mesmos nomes de campo** dos models
+(`Contribution`, `Product`, `Market`, `LeaderboardUser`), incluindo `submittedAt`
+(epoch ms) e `date` (`yyyy-MM-dd`), então a desserialização Gson não muda.
+Adicionar um interceptor Retrofit com o header `Authorization: Bearer <token>`.

@@ -3,6 +3,9 @@
 Backend REST do app Lista Smart. Modelagem de dados, regras de pontos/ranks e
 notas de design: [DESIGN.md](DESIGN.md).
 
+> Trabalho acadêmico interdisciplinar da UNESC, das disciplinas de Engenharia de
+> Software e Desenvolvimento para Dispositivos Móveis.
+
 ## Stack
 Java 17 · Spring Boot 3.2 (Web, Data JPA, Security, Validation) · PostgreSQL
 (NeonDB) · JWT HS256 (jjwt) · Maven
